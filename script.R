@@ -1,8 +1,6 @@
 # Chaine de production sur le fichier recensement diffusé par l'Insee
 
 # GESTION ENVIRONNEMENT ----------------------
-install.packages("renv")
-install.packages("gt")
 
 library(dplyr)
 library(ggplot2)
@@ -40,6 +38,7 @@ summarise(group_by(df, aged), n())
 
 stats_agregees(df %>% filter(sexe == "Homme") %>% pull(aged))
 stats_agregees(df %>% filter(sexe == "Femme") %>% pull(aged))
+
 stats_age <- df %>%
   group_by(decennie = decennie_a_partir_annee(aged)) %>%
   summarise(n())
