@@ -1,20 +1,19 @@
-# Gestion de l’environnement ------
-# library ====
+# Chaine de production sur le fichier recensement diffusé par l'Insee
+
+# GESTION ENVIRONNEMENT ----------------------
+
 library(dplyr)
 library(ggplot2)
-library(stringr)
 library(forcats)
 
-# mdp =====
-api_token <- yaml::read_yaml("secrets.yaml")$API_TOKEN
+api_token <- yaml::read_yaml("secrets.yaml")$JETON_API
 
-# Définition de fonctions ------
-# fonction de determination de decennie =======
+# FONCTIONS ---------------------------------
+
 decennie_a_partir_annee <- function(annee) {
-  return(annee - annee %%
-           10)
+  return(annee - annee %% 10)
 }
-# fonction de stat agregee =========
+
 fonction_de_stat_agregee <- function(a, b = "moyenne", ...) {
   if (b == "moyenne") {
     x <- mean(a, na.rm = TRUE, ...)
@@ -26,76 +25,78 @@ fonction_de_stat_agregee <- function(a, b = "moyenne", ...) {
   return(x)
 }
 
+fonction_de_stat_agregee(rnorm(10))
+fonction_de_stat_agregee(rnorm(10), "ecart-type")
+fonction_de_stat_agregee(rnorm(10), "variance")
 
-# Import des données -------
+
+# IMPORT DONNEES -----------------------------
+
 df <- readr::read_csv2(
   "individu_reg.csv",
-  col_select = c("region", "aemm", "aged", "anai", "catl", "cs1", "cs2", 
-                 "cs3", "couple", "na38", "naf08", "pnai12", "sexe", 
+  col_select = c("region", "aemm", "aged", "anai", "catl", "cs1", "cs2",
+                 "cs3", "couple", "na38", "naf08", "pnai12", "sexe",
                  "surf", "tp", "trans", "ur")
 )
 
+# RETRAITEMENT --------------------------------
 
-# Retraitement des données --------
 df <- df %>%
   mutate(aged = as.numeric(aged))
-
-
-# Statistiques descriptives -------
-summarise(group_by(df, aged), n())
-
-# stats trans par statut ====
-df3 <- df %>%
-  group_by(couple, trans) %>%
-  summarise(x = n()) %>%
-  group_by(couple) %>%
-  mutate(y = 100 * x / sum(x))
 
 df$sexe <- df$sexe %>%
   as.character() %>%
   fct_recode(Homme = "1", Femme = "2")
 
 
+# STATISTIQUES DESCRIPTIVES --------------------
 
-fonction_de_stat_agregee(rnorm(10))
-fonction_de_stat_agregee(rnorm(10), "ecart-type")
-fonction_de_stat_agregee(rnorm(10), "variance")
+summarise(group_by(df, aged), n())
 
 fonction_de_stat_agregee(df %>% filter(sexe == "Homme") %>% pull(aged))
 fonction_de_stat_agregee(df %>% filter(sexe == "Femme") %>% pull(aged))
 
+## stats trans par statut =====================
 
-
-# modelisation
 df3 <- df %>%
-  select(surf, cs1, ur, couple, aged) %>%
-  filter(surf != "Z")
-df3[, 1] <- factor(df3$surf, ordered = TRUE)
-df3[, "cs1"] <- factor(df3$cs1)
-df3 %>%
-  filter(couple == "2" & aged > 40 & aged < 60)
-MASS::polr(surf ~ cs1 + factor(ur), df3)
+  group_by(couple, trans) %>%
+  summarise(x = n()) %>%
+  group_by(couple) %>%
+  mutate(y = 100 * x / sum(x))
 
 
-# Graphiques -----
-# premier graphique ====
+# GRAPHIQUES -----------------------------------
+
 ggplot(df) +
-  geom_histogram(aes(x = 5 * floor(as.numeric(aged) / 5)), stat = "count")
-# part d'homme dans chaque cohort ====
-p <- # part d'homme dans chaque cohort
-  df %>%
+  geom_histogram(aes(x = 5 * floor(aged / 5)), stat = "count")
+
+# part d'homme dans chaque cohort
+p <- df %>%
   group_by(aged, sexe) %>%
   summarise(SH_sexe = n()) %>%
   group_by(aged) %>%
   mutate(SH_sexe = SH_sexe / sum(SH_sexe)) %>%
-  filter(sexe == 1) %>%
+  filter(sexe == "Homme") %>%
   ggplot() +
   geom_bar(aes(x = aged, y = SH_sexe), stat = "identity") +
-  geom_point(aes(x = aged, y = SH_sexe), stat = "identity", color = "red") +
+  geom_point(
+    aes(x = aged, y = SH_sexe),
+    stat = "identity", color = "red") +
   coord_cartesian(c(0, 100))
-
 
 ggsave("p.png", p)
 
 
+# MODELISATION -------------------------------
 
+df3 <- df %>%
+  select(surf, cs1, ur, couple, aged) %>%
+  filter(surf != "Z")
+
+df3 <- df3 %>%
+  mutate(
+    surf = factor(df3$surf, ordered = TRUE),
+    cs1 = factor(cs1)
+  )
+
+MASS::polr(surf ~ cs1 + factor(ur), df3)
